@@ -1,231 +1,186 @@
---  VortX Hub – Brainrot Finder v1.0
---  Powered by OrionLib (custom mirror)
---  13 Aug 2025  |  gumanba
+--[[
+    VortX Hub – Brainrot Finder v2
+    100 % lokal, tanpa API/pastebin
+    by gumanba – 13 Aug 2025
+]]
 
--- 1. Load OrionLib mirror
+-- 1. OrionLib lokal (tanpa remote)
 local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/1nig1htmare1234/SCRIPTS/main/Orion.lua"))()
 
 -- 2. Services
-local Players        = game:GetService("Players")
-local HttpService    = game:GetService("HttpService")
-local Teleport       = game:GetService("TeleportService")
-local RunService     = game:GetService("RunService")
+local Players      = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local Teleport     = game:GetService("TeleportService")
+local RunService   = game:GetService("RunService")
+local Replicated   = game:GetService("ReplicatedStorage")
 
-local LocalPlayer    = Players.LocalPlayer
-local PlaceId        = game.PlaceId
+local LocalPlayer  = Players.LocalPlayer
+local PlaceId      = game.PlaceId
 
-------------------------------------------------------------------
--- 3. Config
-local OurTag         = "VortXHub"
-local BeaconUrl      = "https://api.jsonbin.io/v3/b/66bbbf5cad19ca34f8c4fa0b"   -- public bin
-local UpdateInterval = 30      -- seconds
-
-------------------------------------------------------------------
--- 4. Utility
-local function notify(title, text, time)
-    OrionLib:MakeNotification({Name = title, Content = text, Time = time or 5})
+-- 3. Beacon lokal
+local BeaconFolder = Replicated:FindFirstChild("VortXHub_Beacon")
+if not BeaconFolder then
+    BeaconFolder = Instance.new("Folder")
+    BeaconFolder.Name = "VortXHub_Beacon"
+    BeaconFolder.Parent = Replicated
 end
 
-------------------------------------------------------------------
+-- 4. Helper
+local function Notify(title, text, t)
+    OrionLib:MakeNotification({Name = title, Content = text, Time = t or 5})
+end
+
 -- 5. Window
-local Window = OrionLib:MakeWindow({
-    Name          = "VortX Hub – Brainrot Finder",
-    ConfigFolder  = "VortXHub",
-    SaveConfig    = true,
-    IntroEnabled  = true,
-    IntroText     = "VortX Hub",
-    ShowIcon      = true,
-    Icon          = "rbxassetid://8834748103",
-    CloseCallback = function()
-        notify("Hidden", "Press RightShift to reopen.", 4)
-    end
+local Win = OrionLib:MakeWindow({
+    Name         = "VortX Hub – Local Edition",
+    ConfigFolder = "VortXHub",
+    SaveConfig   = true,
+    ShowIcon     = true
 })
 
-------------------------------------------------------------------
 -- 6. Tabs
-local MainTab   = Window:MakeTab({Name = "Finder", Icon = "rbxassetid://7072719338"})
-local ServerTab = Window:MakeTab({Name = "Servers", Icon = "rbxassetid://7072725342"})
-local MiscTab   = Window:MakeTab({Name = "Misc", Icon = "rbxassetid://7072718362"})
+local MainTab   = Win:MakeTab({Name = "Finder", Icon = "rbxassetid://7072719338"})
+local ServerTab = Win:MakeTab({Name = "Hop",  Icon = "rbxassetid://7072725342"})
+local MiscTab   = Win:MakeTab({Name = "Misc", Icon = "rbxassetid://7072718362"})
 
-------------------------------------------------------------------
 -- 7. Variables
 local ESPObjects = {}
 local AutoSteal  = false
-local ServerList = {}
+local isHopping  = false
 
-------------------------------------------------------------------
 -- 8. Brainrot ESP
-local function addESP(part, name)
-    if not part or ESPObjects[part] then return end
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name   = OurTag
-    billboard.Adornee = part
-    billboard.Size    = UDim2.new(4, 0, 1, 0)
-    billboard.StudsOffsetWorldSpace = Vector3.new(0, 2, 0)
-    local label = Instance.new("TextLabel")
-    label.Text        = "🧠 " .. (name or "Brainrot")
-    label.TextColor3  = Color3.fromRGB(0, 255, 0)
-    label.BackgroundTransparency = 1
-    label.Size        = UDim2.new(1, 0, 1, 0)
-    label.Font        = Enum.Font.GothamBold
-    label.TextSize    = 16
-    label.Parent      = billboard
-    billboard.Parent  = part
-    ESPObjects[part]  = billboard
+local function addESP(part)
+    if ESPObjects[part] then return end
+    local b = Instance.new("BillboardGui")
+    b.Name  = "VortX_ESP"
+    b.Adornee = part
+    b.Size = UDim2.new(4,0,1,0)
+    b.StudsOffsetWorldSpace = Vector3.new(0,2,0)
+    local l = Instance.new("TextLabel")
+    l.Text = "🧠 Brainrot"
+    l.TextColor3 = Color3.fromRGB(0,255,0)
+    l.BackgroundTransparency = 1
+    l.Size = UDim2.new(1,0,1,0)
+    l.Font = Enum.Font.GothamBold
+    l.TextSize = 14
+    l.Parent = b
+    b.Parent = part
+    ESPObjects[part] = b
 end
 
 local function clearESP()
-    for _, obj in pairs(ESPObjects) do obj:Destroy() end
+    for _,v in pairs(ESPObjects) do v:Destroy() end
     ESPObjects = {}
 end
 
-------------------------------------------------------------------
--- 9. Auto-Steal (simple proximity)
-local function startAutoSteal()
-    while AutoSteal do
-        for _, v in ipairs(workspace:GetDescendants()) do
-            if v.Name:lower():match("brainrot") and v:IsA("BasePart") then
-                local mag = (v.Position - LocalPlayer.Character:GetPivot().Position).Magnitude
-                if mag < 20 then
-                    fireproximityprompt(v:FindFirstChildOfClass("ProximityPrompt"))
-                end
-            end
+local function refreshESP()
+    clearESP()
+    for _,v in ipairs(workspace:GetDescendants()) do
+        if v.Name:lower():find("brainrot") and v:IsA("BasePart") then
+            addESP(v)
         end
-        task.wait(0.3)
     end
 end
 
-------------------------------------------------------------------
--- 10. Server Beacon
-local function reportSelf()
-    local data = {
-        placeId = PlaceId,
-        jobId   = game.JobId,
-        players = #Players:GetPlayers(),
-        tag     = OurTag,
-        time    = os.time()
-    }
-    local ok = pcall(function()
-        HttpService:RequestAsync({
-            Url     = BeaconUrl,
-            Method  = "PUT",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body    = HttpService:JSONEncode(data)
-        })
-    end)
-    return ok
-end
-
-local function fetchServers()
-    local list
-    pcall(function()
-        list = HttpService:JSONDecode(
-            HttpService:GetAsync(BeaconUrl .. "/latest")
-        ).record
-    end)
-    return list or {}
-end
-
-------------------------------------------------------------------
--- 11. Main Tab UI
-MainTab:AddToggle({
-    Name    = "ESP Brainrot",
-    Default = false,
-    Callback = function(v)
-        if v then
-            for _, part in ipairs(workspace:GetDescendants()) do
-                if part.Name:lower():match("brainrot") then
-                    addESP(part)
+-- 9. Auto-steal
+local function startAutoSteal()
+    while AutoSteal and task.wait(.3) do
+        local char = LocalPlayer.Character
+        if not char then continue end
+        for _,v in ipairs(workspace:GetDescendants()) do
+            if v.Name:lower():find("brainrot") then
+                local pp = v:FindFirstChildOfClass("ProximityPrompt")
+                if pp and (pp.Part.Position - char:GetPivot().Position).Magnitude < 15 then
+                    fireproximityprompt(pp)
                 end
             end
-            notify("ESP", "Brainrot ESP enabled.")
-        else
-            clearESP()
-            notify("ESP", "Brainrot ESP disabled.")
         end
+    end
+end
+
+-- 10. Server hopping list (dari Roblox API)
+local function getServers()
+    local list = {}
+    local success, result = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(
+            game:HttpGet(string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100", PlaceId))
+        ).data
+    end)
+    if success and result then
+        for _,s in ipairs(result) do
+            if s.playing and s.playing < s.maxPlayers then
+                table.insert(list, {jobId=s.id, players=s.playing})
+            end
+        end
+    end
+    return list
+end
+
+-- 11. Main tab UI
+MainTab:AddToggle({
+    Name = "ESP Brainrot",
+    Default = false,
+    Callback = function(v)
+        if v then refreshESP(); Notify("ESP","ON") else clearESP(); Notify("ESP","OFF") end
     end
 })
 
 MainTab:AddToggle({
-    Name    = "Auto Steal (close)",
+    Name = "Auto Steal (close range)",
     Default = false,
     Callback = function(v)
         AutoSteal = v
-        if v then
-            task.spawn(startAutoSteal)
-            notify("Auto", "Auto-steal enabled.")
-        else
-            notify("Auto", "Auto-steal disabled.")
-        end
+        if v then task.spawn(startAutoSteal); Notify("Auto","ON") else Notify("Auto","OFF") end
     end
 })
 
 MainTab:AddButton({
     Name = "Refresh ESP",
-    Callback = function()
-        clearESP()
-        for _, part in ipairs(workspace:GetDescendants()) do
-            if part.Name:lower():match("brainrot") then
-                addESP(part)
-            end
-        end
-        notify("ESP", "Refreshed.")
-    end
+    Callback = refreshESP
 })
 
-------------------------------------------------------------------
--- 12. Server Tab UI
-local ServerListSection = ServerTab:AddSection({Name = "Servers with VortX Hub"})
-local ServerLabel
-
-local function updateServerList()
-    ServerList = fetchServers()
-    for _, child in ipairs(ServerListSection.Holder:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
+-- 12. Server hop tab
+local ServerListSection = ServerTab:AddSection({Name = "Available Servers"})
+local function buildServerList()
+    for _,btn in ipairs(ServerListSection.Holder:GetChildren()) do
+        if btn:IsA("TextButton") then btn:Destroy() end
     end
-    for _, srv in ipairs(ServerList) do
-        if srv.placeId == PlaceId and srv.tag == OurTag then
-            ServerTab:AddButton({
-                Name = string.format("Job %s (%d players)  –  click to join", srv.jobId:sub(1, 6), srv.players),
-                Callback = function()
+    local servers = getServers()
+    for _,srv in ipairs(servers) do
+        ServerTab:AddButton({
+            Name = string.format("Job %s – %d/%d", srv.jobId:sub(1,6), srv.players, 12),
+            Callback = function()
+                if not isHopping then
+                    isHopping = true
                     Teleport:TeleportToPlaceInstance(PlaceId, srv.jobId, LocalPlayer)
                 end
-            })
-        end
+            end
+        })
     end
 end
 
 ServerTab:AddButton({
     Name = "Refresh Server List",
-    Callback = updateServerList
+    Callback = buildServerList
 })
 
-task.spawn(function()
-    while true do
-        reportSelf()
-        updateServerList()
-        task.wait(UpdateInterval)
-    end
-end)
-
-------------------------------------------------------------------
 -- 13. Misc
 MiscTab:AddButton({
-    Name = "Rejoin Current Server",
+    Name = "Rejoin Same Server",
     Callback = function()
         Teleport:TeleportToPlaceInstance(PlaceId, game.JobId, LocalPlayer)
     end
 })
 
 MiscTab:AddButton({
-    Name = "Copy JobId to Clipboard",
+    Name = "Copy JobId",
     Callback = function()
         setclipboard(game.JobId)
-        notify("Clipboard", "JobId copied: " .. game.JobId)
+        Notify("Clipboard","JobId copied")
     end
 })
 
-------------------------------------------------------------------
 -- 14. Init
-OrionLib:Init()
-notify("Loaded", "VortX Hub – Brainrot Finder ready!", 5)
+refreshESP()
+buildServerList()
+Notify("VortX Hub","Ready – semua lokal!", 5)
