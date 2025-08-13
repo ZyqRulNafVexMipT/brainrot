@@ -1,114 +1,63 @@
 --[[
-    VortX Hub v10 – STANDALONE UI
-    700+ lines – no OrionLib – 100 % working
+    VortX Hub v11 – OrionLib FULL
     14 Aug 2025 – gumanba
 ]]
 --------------------------------------------------------
--- 1. Services
+-- 1. Load OrionLib (lokal mirror)
+local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/1nig1htmare1234/SCRIPTS/main/Orion.lua"))()
+
+--------------------------------------------------------
+-- 2. Services
 local Players = game:GetService("Players")
-local UIS     = game:GetService("UserInputService")
 local RS      = game:GetService("RunService")
 local WS      = game:GetService("Workspace")
-local TS      = game:GetService("TeleportService")
 local Re      = game:GetService("ReplicatedStorage")
+local UIS     = game:GetService("UserInputService")
+local TS      = game:GetService("TeleportService")
 
 local LP      = Players.LocalPlayer
 local Cam     = WS.CurrentCamera
 
 --------------------------------------------------------
--- 2. Simple UI Library (Self-contained)
-local UI = {}
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "VortXUI"
-ScreenGui.Parent = game:GetService("CoreGui")
+-- 3. Window
+local Win = OrionLib:MakeWindow({
+    Name         = "VortX v11 – OrionLib FULL",
+    ConfigFolder = "VortX11",
+    SaveConfig   = true
+})
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 320, 0, 400)
-MainFrame.Position = UDim2.new(0.5, -160, 0.5, -200)
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = ScreenGui
-
-local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 30)
-TopBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-TopBar.BorderSizePixel = 0
-TopBar.Parent = MainFrame
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 1, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "VortX Hub v10"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 18
-Title.Parent = TopBar
-
-local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1, 0, 1, -30)
-Content.Position = UDim2.new(0, 0, 0, 30)
-Content.BackgroundTransparency = 1
-Content.Parent = MainFrame
-
-local UIList = Instance.new("UIListLayout")
-UIList.Padding = UDim.new(0, 5)
-UIList.Parent = Content
+local MainTab   = Win:MakeTab({Name = "Main"})
+local ESPList   = Win:MakeTab({Name = "ESP List"})
+local MiscTab   = Win:MakeTab({Name = "Misc"})
 
 --------------------------------------------------------
--- 3. Utility
+-- 4. Variables
+local States = {
+    Noclip   = false,
+    SpeedJ   = false,
+    Aimbot   = false,
+    ESPAuto  = false
+}
+
+local Conn = {
+    Noclip   = nil,
+    SpeedJ   = nil,
+    Aimbot   = nil,
+    ESPAuto  = nil
+}
+
+--------------------------------------------------------
+-- 5. Utility
 local function Notify(msg)
-    local n = Instance.new("TextLabel")
-    n.Size = UDim2.new(0, 200, 0, 30)
-    n.Position = UDim2.new(0.5, -100, 0.7, 0)
-    n.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    n.TextColor3 = Color3.fromRGB(255, 255, 255)
-    n.Font = Enum.Font.Gotham
-    n.TextSize = 14
-    n.Text = msg
-    n.Parent = ScreenGui
-    task.wait(2)
-    n:Destroy()
+    OrionLib:MakeNotification({Name = "VortX", Content = msg, Time = 4})
 end
 
 --------------------------------------------------------
--- 4. Anti-Cheat Bypass
-local BypassConn, NoclipConn, SpeedConn, AimbotConn
-
-local function enableBypass()
-    local char = LP.Character or LP.CharacterAdded:Wait()
-    local root = char:WaitForChild("HumanoidRootPart")
-    root:SetNetworkOwner(LP)
-    root.CanCollide = false
-
-    for _,v in ipairs(WS:GetDescendants()) do
-        if v:IsA("BasePart") and v.Name:lower():find("zone") then
-            v.CanTouch = false
-            v.CanCollide = false
-        end
-    end
-
-    BypassConn = RS.Heartbeat:Connect(function()
-        local char = LP.Character
-        if char then
-            local root = char:FindFirstChild("HumanoidRootPart")
-            if root then
-                root.CanCollide = false
-            end
-        end
-    end)
-    Notify("Bypass ON")
-end
-
-LP.CharacterAdded:Connect(enableBypass)
-enableBypass()
-
---------------------------------------------------------
--- 5. NoClip Toggle
+-- 6. NoClip v3 (no rubber-band)
 local function setNoclip(state)
+    States.Noclip = state
     if state then
-        NoclipConn = RS.Stepped:Connect(function()
+        Conn.Noclip = RS.Stepped:Connect(function()
             local char = LP.Character
             if char then
                 for _,p in ipairs(char:GetDescendants()) do
@@ -118,16 +67,18 @@ local function setNoclip(state)
         end)
         Notify("NoClip ON")
     else
-        if NoclipConn then NoclipConn:Disconnect(); NoclipConn = nil end
+        if Conn.Noclip then Conn.Noclip:Disconnect(); Conn.Noclip = nil end
         Notify("NoClip OFF")
     end
 end
 
 --------------------------------------------------------
--- 6. Speed + Jump Toggle
+-- 7. Speed 75 + Jump
 local function setSpeedJump(state)
+    States.SpeedJ = state
     if state then
-        SpeedConn = RS.Heartbeat:Connect(function()
+        -- Speed
+        Conn.SpeedJ = RS.Heartbeat:Connect(function()
             local char = LP.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             if root then
@@ -141,27 +92,26 @@ local function setSpeedJump(state)
                 if move.Magnitude > 0 then root.Velocity = move * 75 end
             end
         end)
-
+        -- Jump
         UIS.InputBegan:Connect(function(inp, gp)
             if not gp and inp.KeyCode == Enum.KeyCode.Space then
                 local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
-                end
+                if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
             end
         end)
         Notify("Speed + Jump ON")
     else
-        if SpeedConn then SpeedConn:Disconnect(); SpeedConn = nil end
+        if Conn.SpeedJ then Conn.SpeedJ:Disconnect(); Conn.SpeedJ = nil end
         Notify("Speed + Jump OFF")
     end
 end
 
 --------------------------------------------------------
--- 7. Silent Aimbot
+-- 8. Silent Aimbot
 local function setSilentAim(state)
+    States.Aimbot = state
     if state then
-        AimbotConn = RS.RenderStepped:Connect(function()
+        Conn.Aimbot = RS.RenderStepped:Connect(function()
             local target = nil
             local dist   = math.huge
             for _,plr in ipairs(Players:GetPlayers()) do
@@ -170,7 +120,7 @@ local function setSilentAim(state)
                     if head then
                         local d = (head.Position - Cam.CFrame.p).Magnitude
                         if d < dist then
-                            dist = d
+                            dist  = d
                             target = head
                         end
                     end
@@ -183,14 +133,14 @@ local function setSilentAim(state)
         end)
         Notify("Silent Aimbot ON")
     else
-        if AimbotConn then AimbotConn:Disconnect(); AimbotConn = nil end
+        if Conn.Aimbot then Conn.Aimbot:Disconnect(); Conn.Aimbot = nil end
         Notify("Silent Aimbot OFF")
     end
 end
 
 --------------------------------------------------------
--- 8. Remote Steal Bypass
-local function remoteStealBypass()
+-- 9. Remote Steal (internal remote)
+local function remoteStealAll()
     local remote = Re:FindFirstChild("ClaimBrainrot") or Re:FindFirstChild("StealBrainrot")
     if remote then
         for _,v in ipairs(WS:GetDescendants()) do
@@ -198,30 +148,32 @@ local function remoteStealBypass()
                 remote:FireServer(v)
             end
         end
-        Notify("Remote Steal","Done")
+        Notify("Remote Steal All – DONE")
     else
-        Notify("Remote Steal","Remote not found")
+        Notify("Remote Steal – remote not found")
     end
 end
 
 --------------------------------------------------------
--- 9. Delete Walls
+-- 10. Delete Walls
 local function deleteWalls()
     for _,v in ipairs(WS:GetDescendants()) do
         if v:IsA("BasePart") and v.Name:lower():match("wall") then
             v:Destroy()
         end
     end
-    Notify("Walls","Deleted")
+    Notify("Walls Deleted")
 end
 
 --------------------------------------------------------
--- 10. Refresh Player Table
-local function refreshPlayerTable()
-    for _,btn in ipairs(Content:GetChildren()) do
+-- 11. Refresh Player ESP List
+local function refreshESPList()
+    -- Clear old buttons
+    for _,btn in ipairs(ESPList:GetChildren()) do
         if btn:IsA("TextButton") then btn:Destroy() end
     end
 
+    -- Scan every player
     for _,plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP and plr.Character then
             local brainrot = nil
@@ -231,82 +183,35 @@ local function refreshPlayerTable()
                     break
                 end
             end
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, 0, 0, 25)
-            btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            btn.Font = Enum.Font.Gotham
-            btn.TextSize = 14
-            btn.Text = string.format("%s → %s", plr.Name, brainrot and brainrot.Name or "None")
-            btn.MouseButton1Click:Connect(function()
-                if brainrot then
-                    local remote = Re:FindFirstChild("ClaimBrainrot") or Re:FindFirstChild("StealBrainrot")
-                    if remote then
-                        remote:FireServer(brainrot)
-                        Notify("Stolen from "..plr.Name)
+            ESPList:AddButton({
+                Name = string.format("%s → %s", plr.Name, brainrot and brainrot.Name or "None"),
+                Callback = function()
+                    if brainrot then
+                        local remote = Re:FindFirstChild("ClaimBrainrot") or Re:FindFirstChild("StealBrainrot")
+                        if remote then
+                            remote:FireServer(brainrot)
+                            Notify("Stolen from "..plr.Name)
+                        end
                     end
                 end
-            end)
-            btn.Parent = Content
+            })
         end
     end
 end
 
 --------------------------------------------------------
--- 11. Toggle Buttons
-local function addToggle(text, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 25)
-    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.Gotham
-    btn.TextSize = 14
-    btn.Text = text.." [OFF]"
-    btn.MouseButton1Click:Connect(function()
-        local state = btn.Text:match("OFF") and true or false
-        btn.Text = text.." ["..(state and "ON" or "OFF").."]"
-        callback(state)
-    end)
-    btn.Parent = Content
-end
+-- 12. UI
+MainTab:AddToggle({Name = "NoClip", Default = false, Callback = setNoclip})
+MainTab:AddToggle({Name = "Speed + Jump", Default = false, Callback = setSpeedJump})
+MainTab:AddToggle({Name = "Silent Aimbot", Default = false, Callback = setSilentAim})
+MainTab:AddButton({Name = "Remote Steal All", Callback = remoteStealAll})
+MainTab:AddButton({Name = "Delete Walls", Callback = deleteWalls})
 
---------------------------------------------------------
--- 12. Build UI
-addToggle("Anti-Cheat Bypass", function() end) -- always ON
-addToggle("NoClip", setNoclip)
-addToggle("Speed + Jump", setSpeedJump)
-addToggle("Silent Aimbot", setSilentAim)
+ESPList:AddButton({Name = "Refresh Player Table", Callback = refreshESPList})
 
-local refreshBtn = Instance.new("TextButton")
-refreshBtn.Size = UDim2.new(1, 0, 0, 25)
-refreshBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-refreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-refreshBtn.Font = Enum.Font.Gotham
-refreshBtn.TextSize = 14
-refreshBtn.Text = "Refresh ESP List"
-refreshBtn.MouseButton1Click:Connect(refreshPlayerTable)
-refreshBtn.Parent = Content
-
-local wallBtn = Instance.new("TextButton")
-wallBtn.Size = UDim2.new(1, 0, 0, 25)
-wallBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-wallBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-wallBtn.Font = Enum.Font.Gotham
-wallBtn.TextSize = 14
-wallBtn.Text = "Delete Walls"
-wallBtn.MouseButton1Click:Connect(deleteWalls)
-wallBtn.Parent = Content
-
-local stealBtn = Instance.new("TextButton")
-stealBtn.Size = UDim2.new(1, 0, 0, 25)
-stealBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-stealBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-stealBtn.Font = Enum.Font.Gotham
-stealBtn.TextSize = 14
-stealBtn.Text = "Remote Steal All"
-stealBtn.MouseButton1Click:Connect(remoteStealBypass)
-stealBtn.Parent = Content
+MiscTab:AddButton({Name = "Rejoin Same Server", Callback = function() TS:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP) end})
+MiscTab:AddButton({Name = "Copy JobId", Callback = function() setclipboard(game.JobId) end})
 
 --------------------------------------------------------
 -- 13. Ready
-Notify("VortX v10","Standalone UI loaded – all features active", 5)
+Notify("VortX v11","All OrionLib features loaded – RightShift for GUI", 5)
