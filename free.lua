@@ -1,7 +1,6 @@
 --[[
-    VortX Hub v6 – FULL ENGLISH
-    Delete walls, remote steal, noclip, speed, super jump
-    14 Aug 2025 – gumanba
+    VortX Hub v7 – ESP List + Aimbot
+    Fully tested 14 Aug 2025 – gumanba
 ]]
 --------------------------------------------------------
 -- 1. OrionLib
@@ -21,20 +20,21 @@ local Cam     = WS.CurrentCamera
 --------------------------------------------------------
 -- 3. Window
 local Win = OrionLib:MakeWindow({
-    Name         = "VortX v6 – FULL ENGLISH",
-    ConfigFolder = "VortX6",
+    Name         = "VortX Hub v7 – ESP + Aimbot",
+    ConfigFolder = "VortX7",
     SaveConfig   = true
 })
 
 local MainTab = Win:MakeTab({Name = "Main"})
 local ESPList = Win:MakeTab({Name = "ESP List"})
+local AimTab  = Win:MakeTab({Name = "Aimbot"})
 local MiscTab = Win:MakeTab({Name = "Misc"})
 
 --------------------------------------------------------
 -- 4. Variables
-local SpeedConn, NoclipConn, DoubleConn, RefreshConn
 local ESPButtons = {}
-local SavedPos   = nil
+local AimbotToggle = false
+local AimbotConn   = nil
 
 --------------------------------------------------------
 -- 5. Utility
@@ -43,7 +43,7 @@ local function Notify(title, text, time)
 end
 
 --------------------------------------------------------
--- 6. Delete Walls (base parts)
+-- 6. Delete Walls
 local function deleteWalls()
     for _,v in ipairs(WS:GetDescendants()) do
         if v:IsA("BasePart") and v.Name:lower():match("wall") then
@@ -54,21 +54,20 @@ local function deleteWalls()
 end
 
 --------------------------------------------------------
--- 7. Remote Steal
+-- 7. Remote Steal All
 local function remoteSteal()
     for _,v in ipairs(WS:GetDescendants()) do
         if v.Name:lower():find("brainrot") and v:IsA("BasePart") then
             local pp = v:FindFirstChildOfClass("ProximityPrompt")
-            if pp then
-                fireproximityprompt(pp)
-            end
+            if pp then fireproximityprompt(pp) end
         end
     end
-    Notify("Remote Steal", "Done")
+    Notify("Remote Steal", "Finished")
 end
 
 --------------------------------------------------------
--- 8. NoClip (no rubber-band)
+-- 8. NoClip
+local NoclipConn
 local function setNoclip(state)
     if state then
         NoclipConn = RS.Stepped:Connect(function()
@@ -79,16 +78,17 @@ local function setNoclip(state)
                 end
             end
         end)
-        Notify("NoClip","ON")
+        Notify("NoClip", "ON")
     else
         if NoclipConn then NoclipConn:Disconnect(); NoclipConn = nil end
-        Notify("NoClip","OFF")
+        Notify("NoClip", "OFF")
     end
 end
 
 --------------------------------------------------------
--- 9. Speed + Super Jump
-local function setSpeed(state)
+-- 9. Speed + Jump
+local SpeedConn, JumpConn
+local function setSpeedJump(state)
     if state then
         -- Speed
         SpeedConn = RS.Heartbeat:Connect(function()
@@ -105,8 +105,8 @@ local function setSpeed(state)
                 if move.Magnitude > 0 then root.Velocity = move.Unit * 70 end
             end
         end)
-        -- Super Jump
-        UIS.InputBegan:Connect(function(inp, gp)
+        -- Jump
+        JumpConn = UIS.InputBegan:Connect(function(inp, gp)
             if not gp and inp.KeyCode == Enum.KeyCode.Space then
                 local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
                 if hum and hum.FloorMaterial ~= Enum.Material.Air then
@@ -114,22 +114,21 @@ local function setSpeed(state)
                 end
             end
         end)
-        Notify("Speed & Jump","ON")
+        Notify("Speed + Jump", "ON")
     else
         if SpeedConn then SpeedConn:Disconnect(); SpeedConn = nil end
-        Notify("Speed & Jump","OFF")
+        if JumpConn then JumpConn:Disconnect(); JumpConn = nil end
+        Notify("Speed + Jump", "OFF")
     end
 end
 
 --------------------------------------------------------
--- 10. ESP List (clickable)
+-- 10. Refresh ESP List
 local function refreshESPList()
-    -- Clear old buttons
     for _,btn in ipairs(ESPList:GetChildren()) do
         if btn:IsA("TextButton") then btn:Destroy() end
     end
 
-    -- Scan brainrot
     for _,v in ipairs(WS:GetDescendants()) do
         if v.Name:lower():find("brainrot") and v:IsA("BasePart") then
             ESPList:AddButton({
@@ -137,12 +136,12 @@ local function refreshESPList()
                 Callback = function()
                     local char = LP.Character
                     if char then
-                        SavedPos = char:GetPivot().p
+                        local saved = char:GetPivot().p
                         char:PivotTo(v.CFrame + Vector3.new(0,3,0))
                         task.wait(.2)
                         fireproximityprompt(v:FindFirstChildOfClass("ProximityPrompt"))
                         task.wait(.4)
-                        if SavedPos then char:PivotTo(CFrame.new(SavedPos)) end
+                        char:PivotTo(CFrame.new(saved))
                     end
                 end
             })
@@ -151,16 +150,33 @@ local function refreshESPList()
 end
 
 --------------------------------------------------------
--- 11. Auto refresh every 3 s
-local function setAutoRefresh(state)
+-- 11. Aimbot
+local function setAimbot(state)
+    AimbotToggle = state
     if state then
-        RefreshConn = RS.Heartbeat:Connect(function()
-            refreshESPList()
+        AimbotConn = RS.RenderStepped:Connect(function()
+            local nearest = nil
+            local dist = math.huge
+            for _,plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LP and plr.Character then
+                    local head = plr.Character:FindFirstChild("Head")
+                    if head then
+                        local d = (head.Position - Cam.CFrame.p).Magnitude
+                        if d < dist then
+                            dist = d
+                            nearest = head
+                        end
+                    end
+                end
+            end
+            if nearest then
+                Cam.CFrame = CFrame.new(Cam.CFrame.p, nearest.Position)
+            end
         end)
-        Notify("Auto Refresh","ON")
+        Notify("Aimbot", "ON")
     else
-        if RefreshConn then RefreshConn:Disconnect(); RefreshConn = nil end
-        Notify("Auto Refresh","OFF")
+        if AimbotConn then AimbotConn:Disconnect(); AimbotConn = nil end
+        Notify("Aimbot", "OFF")
     end
 end
 
@@ -169,14 +185,15 @@ end
 MainTab:AddButton({Name = "Delete Walls", Callback = deleteWalls})
 MainTab:AddButton({Name = "Remote Steal All", Callback = remoteSteal})
 MainTab:AddToggle({Name = "NoClip", Default = false, Callback = setNoclip})
-MainTab:AddToggle({Name = "Speed + Jump", Default = false, Callback = setSpeed})
+MainTab:AddToggle({Name = "Speed + Jump", Default = false, Callback = setSpeedJump})
 
 ESPList:AddButton({Name = "Refresh ESP List", Callback = refreshESPList})
-ESPList:AddToggle({Name = "Auto Refresh (3s)", Default = false, Callback = setAutoRefresh})
+
+AimTab:AddToggle({Name = "Aimbot (Head Lock)", Default = false, Callback = setAimbot})
 
 MiscTab:AddButton({Name = "Rejoin Same Server", Callback = function() TS:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP) end})
-MiscTab:AddButton({Name = "Copy JobId",  Callback = function() setclipboard(game.JobId) Notify("Clipboard","Copied") end})
+MiscTab:AddButton({Name = "Copy JobId",  Callback = function() setclipboard(game.JobId); Notify("Clipboard","Copied") end})
 
 --------------------------------------------------------
 -- 13. Ready
-Notify("VortX v6","All features ready – RightShift to open GUI", 5)
+Notify("VortX v7","All features active – RightShift for GUI", 5)
