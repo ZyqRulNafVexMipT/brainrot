@@ -1,5 +1,5 @@
 --[[
-    VortX Hub v3.1 – WORKING
+    VortX Hub v3.1– WORKING
     Steal a Brainrot (Speed, ESP, Anti-hit, Noclip, Instant Steal)
     14 Aug 2025 – gumanba
 ]]
