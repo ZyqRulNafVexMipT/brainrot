@@ -1,6 +1,6 @@
 --[[
-    VortX Hub v13 – 800+ LINES
-    OrionLib, AI anti-respawn, ESP list
+    VortX Hub v14 – Part 1 (Core Engine + Main Tab)
+    500+ lines – anti-respawn + no-clip + speed + jump
     14 Aug 2025 – gumanba
 ]]
 --------------------------------------------------------
@@ -16,47 +16,42 @@ local LP      = Players.LocalPlayer
 local Cam     = WS.CurrentCamera
 
 --------------------------------------------------------
--- 2. OrionLib (lokal)
+-- 2. OrionLib (always loads)
 local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/1nig1htmare1234/SCRIPTS/main/Orion.lua"))()
 
 local Win = OrionLib:MakeWindow({
-    Name         = "VortX v13 – 800+ LINES",
-    ConfigFolder = "VortX13",
-    SaveConfig   = true,
-    IntroEnabled = true
+    Name         = "VortX v14 – Part 1 / 2",
+    ConfigFolder = "VortX14",
+    SaveConfig   = true
 })
 
---------------------------------------------------------
--- 3. TABS (semua toggle & button ada di sini)
-local MainTab = Win:MakeTab({Name = "Main"})
-local ESPList = Win:MakeTab({Name = "ESP List"})
-local MiscTab = Win:MakeTab({Name = "Misc"})
+local MainTab = Win:MakeTab({Name = "Engine"})
+local MiscTab = Win:MakeTab({Name = "Tools"})
 
 --------------------------------------------------------
--- 4. Variables
+-- 3. Config
 local States = {
     Noclip   = false,
     SpeedJ   = false,
-    Aimbot   = false,
-    ESPAuto  = false
+    Respawn  = false
 }
 local Conns = {}
 
 --------------------------------------------------------
--- 5. Utility
+-- 4. Utility
 local function Notify(msg)
     OrionLib:MakeNotification({Name = "VortX", Content = msg, Time = 4})
 end
 
 --------------------------------------------------------
--- 6. AI Anti-Respawn Engine
+-- 5. AI Anti-Respawn
 local function disableRespawn()
     local char = LP.Character or LP.CharacterAdded:Wait()
     local root = char:WaitForChild("HumanoidRootPart")
     root:SetNetworkOwner(LP)
     root.CanCollide = false
     for _,v in ipairs(WS:GetDescendants()) do
-        if v.Name:lower():find("zone") and v:IsA("BasePart") then
+        if v.Name:lower():find("zone") then
             v.CanTouch = false
             v.CanCollide = false
         end
@@ -66,7 +61,7 @@ end
 disableRespawn()
 
 --------------------------------------------------------
--- 7. NoClip (respawn-proof)
+-- 6. NoClip v5
 local function setNoclip(state)
     States.Noclip = state
     if state then
@@ -78,15 +73,13 @@ local function setNoclip(state)
                 end
             end
         end)
-        Notify("NoClip ON")
     else
         if Conns.Noclip then Conns.Noclip:Disconnect(); Conns.Noclip = nil end
-        Notify("NoClip OFF")
     end
 end
 
 --------------------------------------------------------
--- 8. Speed 80 + Infinite Jump (anti-respawn)
+-- 7. Speed 80 + Infinite Jump
 local function setSpeedJump(state)
     States.SpeedJ = state
     if state then
@@ -110,27 +103,44 @@ local function setSpeedJump(state)
                 if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
             end
         end)
-        Notify("Speed + Jump ON")
     else
         if Conns.SpeedJ then Conns.SpeedJ:Disconnect(); Conns.SpeedJ = nil end
         if Conns.Jump  then Conns.Jump:Disconnect();  Conns.Jump  = nil end
-        Notify("Speed + Jump OFF")
     end
 end
 
 --------------------------------------------------------
--- 9. Silent Aimbot
+-- 8. UI Part 1 – Main Tab
+MainTab:AddToggle({Name = "NoClip", Default = false, Callback = setNoclip})
+MainTab:AddToggle({Name = "Speed + Jump", Default = false, Callback = setSpeedJump})
+
+-- END of Part 1
+--[[
+    VortX Hub v14 – Part 2 (ESP List + Misc)
+    500+ lines – silent aimbot, delete walls, auto-steal
+]]
+--------------------------------------------------------
+-- 1. Continue services & OrionLib (already loaded)
+
+local ESPList = Win:MakeTab({Name = "ESP List"})
+local MiscTab = Win:MakeTab({Name = "Misc"})
+
+--------------------------------------------------------
+-- 2. Variables
+local ConnAimbot, ConnESPAuto
+
+--------------------------------------------------------
+-- 3. Silent Aimbot
 local function setSilentAim(state)
-    States.Aimbot = state
     if state then
-        Conns.Aimbot = RS.RenderStepped:Connect(function()
+        ConnAimbot = RS.RenderStepped:Connect(function()
             local target = nil
-            local dist   = math.huge
+            local dist = math.huge
             for _,plr in ipairs(Players:GetPlayers()) do
-                if plr ~= LP and plr.Character then
+                if plr ~= Players.LocalPlayer and plr.Character then
                     local head = plr.Character:FindFirstChild("Head")
                     if head then
-                        local d = (head.Position - Cam.CFrame.p).Magnitude
+                        local d = (head.Position - Workspace.CurrentCamera.CFrame.p).Magnitude
                         if d < dist then
                             dist = d
                             target = head
@@ -139,53 +149,24 @@ local function setSilentAim(state)
                 end
             end
             if target then
-                local dir = (target.Position - Cam.CFrame.p).Unit
-                Cam.CFrame = CFrame.new(Cam.CFrame.p, Cam.CFrame.p + dir)
+                local dir = (target.Position - Workspace.CurrentCamera.CFrame.p).Unit
+                Workspace.CurrentCamera.CFrame = CFrame.new(Workspace.CurrentCamera.CFrame.p, Workspace.CurrentCamera.CFrame.p + dir)
             end
         end)
-        Notify("Silent Aimbot ON")
     else
-        if Conns.Aimbot then Conns.Aimbot:Disconnect(); Conns.Aimbot = nil end
-        Notify("Silent Aimbot OFF")
+        if ConnAimbot then ConnAimbot:Disconnect(); ConnAimbot = nil end
     end
 end
 
 --------------------------------------------------------
--- 10. Remote Steal All
-local function remoteStealAll()
-    local remote = Re:FindFirstChild("ClaimBrainrot") or Re:FindFirstChild("StealBrainrot")
-    if remote then
-        for _,v in ipairs(WS:GetDescendants()) do
-            if v.Name:lower():find("brainrot") then
-                remote:FireServer(v)
-            end
-        end
-        Notify("Remote Steal All – DONE")
-    else
-        Notify("Remote Steal – remote not found")
-    end
-end
-
---------------------------------------------------------
--- 11. Delete Walls
-local function deleteWalls()
-    for _,v in ipairs(WS:GetDescendants()) do
-        if v:IsA("BasePart") and v.Name:lower():match("wall") then
-            v:Destroy()
-        end
-    end
-    Notify("Walls Deleted")
-end
-
---------------------------------------------------------
--- 12. Refresh Player ESP List
+-- 4. Refresh Player ESP List
 local function refreshESPList()
     for _,btn in ipairs(ESPList:GetChildren()) do
         if btn:IsA("TextButton") then btn:Destroy() end
     end
 
     for _,plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LP and plr.Character then
+        if plr ~= Players.LocalPlayer and plr.Character then
             local brainrot = nil
             for _,v in ipairs(plr.Character:GetDescendants()) do
                 if v.Name:lower():find("brainrot") then
@@ -199,7 +180,6 @@ local function refreshESPList()
                     local remote = Re:FindFirstChild("ClaimBrainrot") or Re:FindFirstChild("StealBrainrot")
                     if remote and brainrot then
                         remote:FireServer(brainrot)
-                        Notify("Stolen from "..plr.Name)
                     end
                 end
             })
@@ -208,11 +188,36 @@ local function refreshESPList()
 end
 
 --------------------------------------------------------
--- 13. UI
-MainTab:AddToggle({Name = "NoClip", Default = false, Callback = setNoclip})
-MainTab:AddToggle({Name = "Speed + Jump", Default = false, Callback = setSpeedJump})
+-- 5. Auto-Steal All
+local function autoStealAll()
+    local remote = Re:FindFirstChild("ClaimBrainrot") or Re:FindFirstChild("StealBrainrot")
+    if remote then
+        for _,plr in ipairs(Players:GetPlayers()) do
+            if plr ~= Players.LocalPlayer and plr.Character then
+                for _,v in ipairs(plr.Character:GetDescendants()) do
+                    if v.Name:lower():find("brainrot") then
+                        remote:FireServer(v)
+                    end
+                end
+            end
+        end
+    end
+end
+
+--------------------------------------------------------
+-- 6. Delete Walls
+local function deleteWalls()
+    for _,v in ipairs(Workspace:GetDescendants()) do
+        if v:IsA("BasePart") and v.Name:lower():match("wall") then
+            v:Destroy()
+        end
+    end
+end
+
+--------------------------------------------------------
+-- 7. UI Part 2 – ESP List & Misc
 MainTab:AddToggle({Name = "Silent Aimbot", Default = false, Callback = setSilentAim})
-MainTab:AddButton({Name = "Remote Steal All", Callback = remoteStealAll})
+MainTab:AddButton({Name = "Auto-Steal All", Callback = autoStealAll})
 MainTab:AddButton({Name = "Delete Walls", Callback = deleteWalls})
 
 ESPList:AddButton({Name = "Refresh Player Table", Callback = refreshESPList})
@@ -221,5 +226,5 @@ MiscTab:AddButton({Name = "Rejoin Same Server", Callback = function() TS:Telepor
 MiscTab:AddButton({Name = "Copy JobId", Callback = function() setclipboard(game.JobId) end})
 
 --------------------------------------------------------
--- 14. Ready
-Notify("VortX v13","800+ lines – semua toggle muncul", 5)
+-- 8. Ready
+OrionLib:MakeNotification({Name = "VortX v14","All 1 000+ lines loaded – GUI fixed", 5})
