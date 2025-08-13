@@ -1,10 +1,10 @@
 --[[
-    VortX Hub – Steal a Brainrot ULTIMATE v3
+    VortX Hub v3.1 – WORKING
+    Steal a Brainrot (Speed, ESP, Anti-hit, Noclip, Instant Steal)
     14 Aug 2025 – gumanba
-    Fitur: speed, anti-hit, base ESP filter, double-jump, noclip, instant steal, thief tracer
 ]]
 --------------------------------------------------------
--- 1. Load OrionLib
+-- 1. OrionLib
 local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/1nig1htmare1234/SCRIPTS/main/Orion.lua"))()
 
 --------------------------------------------------------
@@ -12,9 +12,8 @@ local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/1nig
 local Players     = game:GetService("Players")
 local UIS         = game:GetService("UserInputService")
 local RS          = game:GetService("RunService")
-local TS          = game:GetService("TeleportService")
 local Workspace   = game:GetService("Workspace")
-local Replicated  = game:GetService("ReplicatedStorage")
+local Teleport    = game:GetService("TeleportService")
 
 local LP          = Players.LocalPlayer
 local Camera      = Workspace.CurrentCamera
@@ -22,36 +21,37 @@ local Camera      = Workspace.CurrentCamera
 --------------------------------------------------------
 -- 3. Window
 local Win = OrionLib:MakeWindow({
-    Name         = "VortX Hub Ultimate",
-    ConfigFolder = "VortXHub3",
+    Name         = "VortX Hub v3.1 – WORKING",
+    ConfigFolder = "VortXHub31",
     SaveConfig   = true,
     IntroEnabled = true,
-    IntroText    = "VortX Ultimate"
+    IntroText    = "VortX Working",
+    ShowIcon     = true
 })
 
-local MainTab   = Win:MakeTab({Name = "Main",  Icon = "rbxassetid://7072719338"})
-local ESPTab    = Win:MakeTab({Name = "ESP",   Icon = "rbxassetid://3944680095"})
-local MiscTab   = Win:MakeTab({Name = "Misc",  Icon = "rbxassetid://7072718362"})
+local MainTab = Win:MakeTab({Name = "Main",  Icon = "rbxassetid://7072719338"})
+local ESPTab  = Win:MakeTab({Name = "ESP",   Icon = "rbxassetid://3944680095"})
+local MiscTab = Win:MakeTab({Name = "Misc",  Icon = "rbxassetid://7072718362"})
 
 --------------------------------------------------------
 -- 4. Variables
-local Settings = {
-    SpeedEnabled   = false,
-    AntiHitEnabled = false,
-    DoubleJump     = false,
-    Noclip         = false,
-    InstantSteal   = false,
-    ThiefTracer    = false,
-    ESPFilter      = "All" -- "All", "Rare", "Legendary", "Mythic"
+local States = {
+    Speed    = false,
+    AntiHit  = false,
+    DoubleJ  = false,
+    Noclip   = false,
+    ESP      = false,
+    Instant  = false,
+    Tracer   = false,
+    Filter   = "All"
 }
 
-local BaseLockPos      = nil
-local ESPObjects       = {}
-local ThiefConn        = nil
-local NoclipConn       = nil
-local SpeedConn        = nil
-local DoubleJumpConn   = nil
-local LastStolenFrom   = nil
+local ESPObjects = {}
+local BasePos    = nil
+local ThiefConn  = nil
+local NoclipConn = nil
+local SpeedConn  = nil
+local DoubleConn = nil
 
 --------------------------------------------------------
 -- 5. Utility
@@ -60,24 +60,23 @@ local function Notify(title, text, time)
 end
 
 --------------------------------------------------------
--- 6. Speed bypass (existing)
+-- 6. Speed Bypass (working)
 local function setSpeed(state)
-    Settings.SpeedEnabled = state
+    States.Speed = state
     if state then
         SpeedConn = RS.Heartbeat:Connect(function()
-            pcall(function()
-                local char = LP.Character
-                local root = char and char:FindFirstChild("HumanoidRootPart")
-                if not root then return end
+            local char = LP.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if root then
                 local move = Vector3.zero
-                local forward = Vector3.new(Camera.CFrame.LookVector.X,0,Camera.CFrame.LookVector.Z).Unit
-                local right   = Vector3.new(Camera.CFrame.RightVector.X,0,Camera.CFrame.RightVector.Z).Unit
-                if UIS:IsKeyDown(Enum.KeyCode.W) then move += forward end
-                if UIS:IsKeyDown(Enum.KeyCode.S) then move -= forward end
-                if UIS:IsKeyDown(Enum.KeyCode.A) then move -= right   end
-                if UIS:IsKeyDown(Enum.KeyCode.D) then move += right   end
+                local fwd = Vector3.new(Camera.CFrame.LookVector.X, 0, Camera.CFrame.LookVector.Z).Unit
+                local rgt = Vector3.new(Camera.CFrame.RightVector.X, 0, Camera.CFrame.RightVector.Z).Unit
+                if UIS:IsKeyDown(Enum.KeyCode.W) then move += fwd end
+                if UIS:IsKeyDown(Enum.KeyCode.S) then move -= fwd end
+                if UIS:IsKeyDown(Enum.KeyCode.A) then move -= rgt end
+                if UIS:IsKeyDown(Enum.KeyCode.D) then move += rgt end
                 if move.Magnitude > 0 then root.Velocity = move.Unit * 60 end
-            end)
+            end
         end)
     else
         if SpeedConn then SpeedConn:Disconnect(); SpeedConn = nil end
@@ -85,19 +84,17 @@ local function setSpeed(state)
 end
 
 --------------------------------------------------------
--- 7. Anti-hit (remove damage modules)
+-- 7. Anti-hit (remove touch parts)
 local function setAntiHit(state)
-    Settings.AntiHitEnabled = state
+    States.AntiHit = state
     if state then
-        local char = LP.Character or LP.CharacterAdded:Wait()
-        for _,v in ipairs(char:GetDescendants()) do
-            if v:IsA("BasePart") then v.CanTouch = false end
-        end
-        LP.CharacterAdded:Connect(function(c)
-            for _,v in ipairs(c:GetDescendants()) do
+        local function protect(char)
+            for _,v in ipairs(char:GetDescendants()) do
                 if v:IsA("BasePart") then v.CanTouch = false end
             end
-        end)
+        end
+        protect(LP.Character or LP.CharacterAdded:Wait())
+        LP.CharacterAdded:Connect(protect)
         Notify("Anti-hit","ON")
     else
         Notify("Anti-hit","OFF")
@@ -105,29 +102,28 @@ local function setAntiHit(state)
 end
 
 --------------------------------------------------------
--- 8. Double-jump
+-- 8. Double jump
 local function setDoubleJump(state)
-    Settings.DoubleJump = state
+    States.DoubleJ = state
     if state then
-        DoubleJumpConn = UIS.InputBegan:Connect(function(inp, gp)
+        DoubleConn = UIS.InputBegan:Connect(function(inp, gp)
             if gp then return end
             if inp.KeyCode == Enum.KeyCode.Space then
                 local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
                 if hum and hum.FloorMaterial ~= Enum.Material.Air then
-                    task.wait(.05)
                     hum:ChangeState(Enum.HumanoidStateType.Jumping)
                 end
             end
         end)
     else
-        if DoubleJumpConn then DoubleJumpConn:Disconnect(); DoubleJumpConn = nil end
+        if DoubleConn then DoubleConn:Disconnect(); DoubleConn = nil end
     end
 end
 
 --------------------------------------------------------
--- 9. Noclip (phase through parts)
+-- 9. Noclip (phase walls)
 local function setNoclip(state)
-    Settings.Noclip = state
+    States.Noclip = state
     if state then
         NoclipConn = RS.Stepped:Connect(function()
             local char = LP.Character
@@ -143,7 +139,7 @@ local function setNoclip(state)
 end
 
 --------------------------------------------------------
--- 10. ESP – brainrot di base saja, filter tier
+-- 10. ESP Brainrot di base + filter tier
 local function clearESP()
     for _,v in pairs(ESPObjects) do v:Destroy() end
     ESPObjects = {}
@@ -151,38 +147,55 @@ end
 
 local function refreshESP()
     clearESP()
-    local tier = Settings.ESPFilter
-    for _,v in ipairs(workspace:GetDescendants()) do
+    local tier = States.Filter
+    for _,v in ipairs(Workspace:GetDescendants()) do
         local name = v.Name:lower()
         if name:find("brainrot") and v:IsA("BasePart") then
-            -- cek apakah di base (diasumsikan base ada di workspace.Bases)
+            -- cek apakah di area base
             local inBase = false
             local par = v.Parent
-            while par and par ~= workspace do
+            while par and par ~= Workspace do
                 if par.Name:lower():find("base") then inBase = true; break end
                 par = par.Parent
             end
             if inBase then
-                local label = "🧠 "..v.Name
-                if (tier == "All") or
-                   (tier == "Rare" and name:find("rare")) or
-                   (tier == "Legendary" and name:find("legendary")) or
-                   (tier == "Mythic" and name:find("mythic")) then
+                local valid = (tier == "All") or
+                              (tier == "Rare" and name:find("rare")) or
+                              (tier == "Legendary" and name:find("legendary")) or
+                              (tier == "Mythic" and name:find("mythic"))
+                if valid then
                     local b = Instance.new("BillboardGui")
-                    b.Name = "VortX_ESP"
                     b.Adornee = v
                     b.Size = UDim2.new(4,0,1,0)
                     b.StudsOffsetWorldSpace = Vector3.new(0,2,0)
                     local l = Instance.new("TextLabel")
-                    l.Text = label
-                    l.TextColor3 = Color3.fromRGB(0,255,255)
+                    l.Text = "🧠 "..v.Name
+                    l.TextColor3 = Color3.fromRGB(0,255,0)
                     l.BackgroundTransparency = 1
                     l.Size = UDim2.new(1,0,1,0)
                     l.Font = Enum.Font.GothamBold
                     l.TextSize = 14
+                    l.Active = true
+                    l.Selectable = true
                     l.Parent = b
                     b.Parent = v
                     ESPObjects[v] = b
+                    -- klik label untuk instant steal
+                    l.InputBegan:Connect(function(inp)
+                        if inp.UserInputType == Enum.UserInputType.MouseButton1 and States.Instant then
+                            local char = LP.Character
+                            if char then
+                                BasePos = char:GetPivot().p
+                                char:PivotTo(v.CFrame + Vector3.new(0,3,0))
+                                task.wait(.2)
+                                fireproximityprompt(v:FindFirstChildOfClass("ProximityPrompt"))
+                                task.wait(.4)
+                                if BasePos then
+                                    char:PivotTo(CFrame.new(BasePos))
+                                end
+                            end
+                        end
+                    end)
                 end
             end
         end
@@ -190,59 +203,28 @@ local function refreshESP()
 end
 
 --------------------------------------------------------
--- 11. Instant steal (teleport ke brainrot, steal, balik ke base lock)
-local function setInstantSteal(state)
-    Settings.InstantSteal = state
-    if state then
-        Notify("Instant Steal", "ON – click brainrot ESP label")
-    else
-        Notify("Instant Steal", "OFF")
-    end
-end
-
--- klik label ESP untuk steal otomatis
-local function hookESPClick()
-    for _,gui in pairs(ESPObjects) do
-        local btn = gui:FindFirstChildOfClass("TextLabel")
-        if btn then
-            btn.Active = true
-            btn.Selectable = true
-            btn.InputBegan:Connect(function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseButton1 and Settings.InstantSteal then
-                    local part = gui.Adornee
-                    if part then
-                        local char = LP.Character
-                        if char then
-                            BaseLockPos = char:GetPivot().p
-                            char:PivotTo(part.CFrame + Vector3.new(0,3,0))
-                            task.wait(.2)
-                            fireproximityprompt(part:FindFirstChildOfClass("ProximityPrompt"))
-                            task.wait(.4)
-                            if BaseLockPos then char:PivotTo(CFrame.new(BaseLockPos)) end
-                        end
-                    end
-                end
-            end)
-        end
-    end
+-- 11. Instant steal toggle
+local function setInstant(state)
+    States.Instant = state
+    Notify("Instant Steal", state and "ON – klik label ESP" or "OFF")
 end
 
 --------------------------------------------------------
--- 12. Thief tracer – jika brainrot kita hilang, ikuti pemilik
-local function setThiefTracer(state)
-    Settings.ThiefTracer = state
+-- 12. Thief Tracer
+local function setTracer(state)
+    States.Tracer = state
     if state then
-        ThiefConn = game.DescendantRemoving:Connect(function(obj)
-            if obj.Name:lower():find("brainrot") and obj:IsA("BasePart") and obj:IsDescendantOf(LP.Character or nil) then
-                local thief = nil
-                -- cek pemilik terakhir (diasumsikan ada ObjectValue)
-                local val = obj:FindFirstChild("Owner")
-                if val and val.Value and val.Value ~= LP then
-                    thief = val.Value
-                end
-                if thief and thief.Character then
-                    Notify("Thief Tracer","Following "..thief.Name)
-                    LP.Character:PivotTo(thief.Character:GetPivot())
+        ThiefConn = Workspace.DescendantRemoving:Connect(function(obj)
+            if obj.Name:lower():find("brainrot") and obj:IsA("BasePart") then
+                if obj:IsDescendantOf(LP.Character or nil) then
+                    -- coba cari pemilik (contoh: ObjectValue nama "Owner")
+                    local ownerVal = obj:FindFirstChild("Owner")
+                    if ownerVal and ownerVal.Value and ownerVal.Value ~= LP then
+                        local thiefChar = ownerVal.Value.Character
+                        if thiefChar then
+                            LP.Character:PivotTo(thiefChar:GetPivot())
+                        end
+                    end
                 end
             end
         end)
@@ -252,64 +234,39 @@ local function setThiefTracer(state)
 end
 
 --------------------------------------------------------
--- 13. UI Layout
-MainTab:AddToggle({
-    Name = "Speed Bypass",
+-- 13. UI
+MainTab:AddToggle({Name = "Speed Bypass",  Default = false, Callback = setSpeed})
+MainTab:AddToggle({Name = "Anti Hit",      Default = false, Callback = setAntiHit})
+MainTab:AddToggle({Name = "Double Jump",   Default = false, Callback = setDoubleJump})
+MainTab:AddToggle({Name = "Noclip",        Default = false, Callback = setNoclip})
+
+ESPTab:AddToggle({
+    Name = "ESP Brainrot (Base)",
     Default = false,
-    Callback = setSpeed
+    Callback = function(v)
+        States.ESP = v
+        if v then refreshESP() else clearESP() end
+    end
 })
 
-MainTab:AddToggle({
-    Name = "Anti Hit",
-    Default = false,
-    Callback = setAntiHit
-})
-
-MainTab:AddToggle({
-    Name = "Double Jump",
-    Default = false,
-    Callback = setDoubleJump
-})
-
-MainTab:AddToggle({
-    Name = "Noclip / Phase",
-    Default = false,
-    Callback = setNoclip
-})
-
-MainTab:AddToggle({
-    Name = "Instant Steal (click ESP)",
-    Default = false,
-    Callback = setInstantSteal
-})
-
-MainTab:AddToggle({
-    Name = "Thief Tracer",
-    Default = false,
-    Callback = setThiefTracer
-})
-
--- ESP tab
 ESPTab:AddDropdown({
     Name = "Filter Tier",
     Default = "All",
     Options = {"All","Rare","Legendary","Mythic"},
     Callback = function(v)
-        Settings.ESPFilter = v
-        refreshESP()
+        States.Filter = v
+        if States.ESP then refreshESP() end
     end
 })
 
-ESPTab:AddButton({
-    Name = "Refresh ESP",
-    Callback = function()
-        refreshESP()
-        hookESPClick()
-    end
-})
+ESPTab:AddButton({Name = "Refresh ESP", Callback = refreshESP})
+
+MainTab:AddToggle({Name = "Instant Steal", Default = false, Callback = setInstant})
+MainTab:AddToggle({Name = "Thief Tracer",  Default = false, Callback = setTracer})
+
+MiscTab:AddButton({Name = "Rejoin Same",  Callback = function() Teleport:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP) end})
+MiscTab:AddButton({Name = "Copy JobId",   Callback = function() setclipboard(game.JobId) Notify("Clipboard", "Copied") end})
 
 --------------------------------------------------------
--- 14. Init
-refreshESP()
-hookESPClick()
-Notify("VortX Ultimate","Semua fitur aktif – enjoy!", 5)
+-- 14. Ready
+Notify("VortX v3.1","Semua fitur siap – RightShift untuk GUI", 5)
