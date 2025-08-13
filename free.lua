@@ -1,6 +1,6 @@
 --[[
-    VortX Hub v7 – ESP List + Aimbot
-    Fully tested 14 Aug 2025 – gumanba
+    VortX Hub v8 – AI Anti-Cheat Bypass
+    14 Aug 2025 – gumanba
 ]]
 --------------------------------------------------------
 -- 1. OrionLib
@@ -9,10 +9,10 @@ local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/1nig
 --------------------------------------------------------
 -- 2. Services
 local Players = game:GetService("Players")
-local UIS     = game:GetService("UserInputService")
 local RS      = game:GetService("RunService")
 local WS      = game:GetService("Workspace")
 local TS      = game:GetService("TeleportService")
+local Re      = game:GetService("ReplicatedStorage")
 
 local LP      = Players.LocalPlayer
 local Cam     = WS.CurrentCamera
@@ -20,128 +20,99 @@ local Cam     = WS.CurrentCamera
 --------------------------------------------------------
 -- 3. Window
 local Win = OrionLib:MakeWindow({
-    Name         = "VortX Hub v7 – ESP + Aimbot",
-    ConfigFolder = "VortX7",
+    Name         = "VortX v8 – AI Bypass",
+    ConfigFolder = "VortX8",
     SaveConfig   = true
 })
 
-local MainTab = Win:MakeTab({Name = "Main"})
-local ESPList = Win:MakeTab({Name = "ESP List"})
-local AimTab  = Win:MakeTab({Name = "Aimbot"})
-local MiscTab = Win:MakeTab({Name = "Misc"})
+local MainTab   = Win:MakeTab({Name = "Bypass"})
+local PlayerTab = Win:MakeTab({Name = "Players"})
+local MiscTab   = Win:MakeTab({Name = "Misc"})
 
 --------------------------------------------------------
--- 4. Variables
-local ESPButtons = {}
+-- 4. Anti-Cheat Hooks
+local function disableRubberBand()
+    -- Hook root physics
+    local char = LP.Character or LP.CharacterAdded:Wait()
+    local root = char:WaitForChild("HumanoidRootPart")
+    root:SetNetworkOwner(LP)
+    root.CanCollide = false
+
+    -- Disable zone parts
+    for _,v in ipairs(WS:GetDescendants()) do
+        if v:IsA("BasePart") and v.Name:lower():find("zone") then
+            v.CanTouch = false
+        end
+    end
+end
+
+LP.CharacterAdded:Connect(disableRubberBand)
+disableRubberBand()
+
+--------------------------------------------------------
+-- 5. Silent Aimbot
 local AimbotToggle = false
 local AimbotConn   = nil
 
---------------------------------------------------------
--- 5. Utility
-local function Notify(title, text, time)
-    OrionLib:MakeNotification({Name = title, Content = text, Time = time or 4})
-end
-
---------------------------------------------------------
--- 6. Delete Walls
-local function deleteWalls()
-    for _,v in ipairs(WS:GetDescendants()) do
-        if v:IsA("BasePart") and v.Name:lower():match("wall") then
-            v:Destroy()
-        end
-    end
-    Notify("Walls", "Deleted")
-end
-
---------------------------------------------------------
--- 7. Remote Steal All
-local function remoteSteal()
-    for _,v in ipairs(WS:GetDescendants()) do
-        if v.Name:lower():find("brainrot") and v:IsA("BasePart") then
-            local pp = v:FindFirstChildOfClass("ProximityPrompt")
-            if pp then fireproximityprompt(pp) end
-        end
-    end
-    Notify("Remote Steal", "Finished")
-end
-
---------------------------------------------------------
--- 8. NoClip
-local NoclipConn
-local function setNoclip(state)
+local function setSilentAim(state)
+    AimbotToggle = state
     if state then
-        NoclipConn = RS.Stepped:Connect(function()
-            local char = LP.Character
-            if char then
-                for _,p in ipairs(char:GetDescendants()) do
-                    if p:IsA("BasePart") then p.CanCollide = false end
+        AimbotConn = RS.RenderStepped:Connect(function()
+            local target = nil
+            local dist   = math.huge
+            for _,plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LP and plr.Character then
+                    local head = plr.Character:FindFirstChild("Head")
+                    if head then
+                        local d = (head.Position - Cam.CFrame.p).Magnitude
+                        if d < dist then
+                            dist  = d
+                            target = head
+                        end
+                    end
                 end
             end
+            if target then
+                local dir = (target.Position - Cam.CFrame.p).Unit
+                local newCF = CFrame.new(Cam.CFrame.p, Cam.CFrame.p + dir)
+                Cam.CFrame = newCF
+            end
         end)
-        Notify("NoClip", "ON")
     else
-        if NoclipConn then NoclipConn:Disconnect(); NoclipConn = nil end
-        Notify("NoClip", "OFF")
+        if AimbotConn then AimbotConn:Disconnect(); AimbotConn = nil end
     end
 end
 
 --------------------------------------------------------
--- 9. Speed + Jump
-local SpeedConn, JumpConn
-local function setSpeedJump(state)
-    if state then
-        -- Speed
-        SpeedConn = RS.Heartbeat:Connect(function()
-            local char = LP.Character
-            local root = char and char:FindFirstChild("HumanoidRootPart")
-            if root then
-                local move = Vector3.zero
-                local fwd = Vector3.new(Cam.CFrame.LookVector.X,0,Cam.CFrame.LookVector.Z).Unit
-                local rgt = Vector3.new(Cam.CFrame.RightVector.X,0,Cam.CFrame.RightVector.Z).Unit
-                if UIS:IsKeyDown(Enum.KeyCode.W) then move += fwd end
-                if UIS:IsKeyDown(Enum.KeyCode.S) then move -= fwd end
-                if UIS:IsKeyDown(Enum.KeyCode.A) then move -= rgt end
-                if UIS:IsKeyDown(Enum.KeyCode.D) then move += rgt end
-                if move.Magnitude > 0 then root.Velocity = move.Unit * 70 end
-            end
-        end)
-        -- Jump
-        JumpConn = UIS.InputBegan:Connect(function(inp, gp)
-            if not gp and inp.KeyCode == Enum.KeyCode.Space then
-                local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-                if hum and hum.FloorMaterial ~= Enum.Material.Air then
-                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
-                end
-            end
-        end)
-        Notify("Speed + Jump", "ON")
-    else
-        if SpeedConn then SpeedConn:Disconnect(); SpeedConn = nil end
-        if JumpConn then JumpConn:Disconnect(); JumpConn = nil end
-        Notify("Speed + Jump", "OFF")
-    end
-end
-
---------------------------------------------------------
--- 10. Refresh ESP List
-local function refreshESPList()
-    for _,btn in ipairs(ESPList:GetChildren()) do
+-- 6. Player-Brainrot Database
+local function refreshPlayerTable()
+    -- Clear old buttons
+    for _,btn in ipairs(PlayerTab:GetChildren()) do
         if btn:IsA("TextButton") then btn:Destroy() end
     end
 
-    for _,v in ipairs(WS:GetDescendants()) do
-        if v.Name:lower():find("brainrot") and v:IsA("BasePart") then
-            ESPList:AddButton({
-                Name = v.Name,
+    -- Scan every player
+    for _,plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP and plr.Character then
+            local brainrot = nil
+            for _,v in ipairs(plr.Character:GetDescendants()) do
+                if v.Name:lower():find("brainrot") then
+                    brainrot = v
+                    break
+                end
+            end
+            PlayerTab:AddButton({
+                Name = string.format("%s → %s", plr.Name, brainrot and brainrot.Name or "None"),
                 Callback = function()
-                    local char = LP.Character
-                    if char then
-                        local saved = char:GetPivot().p
-                        char:PivotTo(v.CFrame + Vector3.new(0,3,0))
-                        task.wait(.2)
-                        fireproximityprompt(v:FindFirstChildOfClass("ProximityPrompt"))
-                        task.wait(.4)
-                        char:PivotTo(CFrame.new(saved))
+                    if brainrot then
+                        local targetPos = brainrot.Position
+                        local char = LP.Character
+                        if char then
+                            TS:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP)
+                            char:PivotTo(CFrame.new(targetPos))
+                            task.wait(.3)
+                            fireproximityprompt(brainrot:FindFirstChildOfClass("ProximityPrompt"))
+                        end
                     end
                 end
             })
@@ -150,50 +121,79 @@ local function refreshESPList()
 end
 
 --------------------------------------------------------
--- 11. Aimbot
-local function setAimbot(state)
-    AimbotToggle = state
-    if state then
-        AimbotConn = RS.RenderStepped:Connect(function()
-            local nearest = nil
-            local dist = math.huge
-            for _,plr in ipairs(Players:GetPlayers()) do
-                if plr ~= LP and plr.Character then
-                    local head = plr.Character:FindFirstChild("Head")
-                    if head then
-                        local d = (head.Position - Cam.CFrame.p).Magnitude
-                        if d < dist then
-                            dist = d
-                            nearest = head
-                        end
-                    end
-                end
+-- 7. Remote Steal Bypass (no proximity)
+local function remoteStealBypass()
+    local claim = Re:FindFirstChild("ClaimBrainrot") or Re:FindFirstChild("StealBrainrot")
+    if claim then
+        for _,v in ipairs(WS:GetDescendants()) do
+            if v.Name:lower():find("brainrot") then
+                claim:FireServer(v)
             end
-            if nearest then
-                Cam.CFrame = CFrame.new(Cam.CFrame.p, nearest.Position)
-            end
-        end)
-        Notify("Aimbot", "ON")
+        end
+        Notify("Remote Steal","Bypassed")
     else
-        if AimbotConn then AimbotConn:Disconnect(); AimbotConn = nil end
-        Notify("Aimbot", "OFF")
+        Notify("Remote Steal","Remote not found")
     end
 end
 
 --------------------------------------------------------
--- 12. UI
-MainTab:AddButton({Name = "Delete Walls", Callback = deleteWalls})
-MainTab:AddButton({Name = "Remote Steal All", Callback = remoteSteal})
-MainTab:AddToggle({Name = "NoClip", Default = false, Callback = setNoclip})
-MainTab:AddToggle({Name = "Speed + Jump", Default = false, Callback = setSpeedJump})
-
-ESPList:AddButton({Name = "Refresh ESP List", Callback = refreshESPList})
-
-AimTab:AddToggle({Name = "Aimbot (Head Lock)", Default = false, Callback = setAimbot})
-
-MiscTab:AddButton({Name = "Rejoin Same Server", Callback = function() TS:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP) end})
-MiscTab:AddButton({Name = "Copy JobId",  Callback = function() setclipboard(game.JobId); Notify("Clipboard","Copied") end})
+-- 8. NoClip + Speed + Jump (Anti-Cheat Safe)
+local BypassConn
+local function setBypass(state)
+    if state then
+        BypassConn = RS.Heartbeat:Connect(function()
+            local char = LP.Character
+            if char then
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if root then
+                    root.Velocity = Vector3.zero
+                    root.CanCollide = false
+                end
+            end
+        end)
+        -- Speed
+        RS.Heartbeat:Connect(function()
+            local char = LP.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if root then
+                local move = Vector3.zero
+                local fwd = (Cam.CFrame.LookVector * Vector3.new(1,0,1)).Unit
+                local rgt = (Cam.CFrame.RightVector * Vector3.new(1,0,1)).Unit
+                if UIS:IsKeyDown(Enum.KeyCode.W) then move += fwd end
+                if UIS:IsKeyDown(Enum.KeyCode.S) then move -= fwd end
+                if UIS:IsKeyDown(Enum.KeyCode.A) then move -= rgt end
+                if UIS:IsKeyDown(Enum.KeyCode.D) then move += rgt end
+                if move.Magnitude > 0 then root.Velocity = move * 70 end
+            end
+        end)
+        -- Super Jump
+        UIS.InputBegan:Connect(function(inp, gp)
+            if not gp and inp.KeyCode == Enum.KeyCode.Space then
+                local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
+        end)
+        Notify("Bypass","ON")
+    else
+        if BypassConn then BypassConn:Disconnect(); BypassConn = nil end
+        Notify("Bypass","OFF")
+    end
+end
 
 --------------------------------------------------------
--- 13. Ready
-Notify("VortX v7","All features active – RightShift for GUI", 5)
+-- 9. UI
+MainTab:AddToggle({Name = "Anti-Cheat Bypass", Default = false, Callback = setBypass})
+MainTab:AddButton({Name = "Delete Walls", Callback = deleteWalls})
+MainTab:AddButton({Name = "Remote Steal (Bypass)", Callback = remoteStealBypass})
+MainTab:AddToggle({Name = "Silent Aimbot", Default = false, Callback = setSilentAim})
+
+PlayerTab:AddButton({Name = "Refresh Player Table", Callback = refreshPlayerTable})
+
+MiscTab:AddButton({Name = "Rejoin Same Server", Callback = function() TS:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP) end})
+MiscTab:AddButton({Name = "Copy JobId", Callback = function() setclipboard(game.JobId) end})
+
+--------------------------------------------------------
+-- 10. Ready
+Notify("VortX v8","AI Bypass loaded – RightShift for GUI", 5)
