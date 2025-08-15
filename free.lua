@@ -753,6 +753,3 @@ task.delay(0.5, function()
     if config.AutoOpenChest then autoOpenChestLoop = true startAutoOpenChest() end
     if config.AutoSpin then autoSpinLoop = true startAutoSpin() end
 end)
-
--- Library init (unchanged)
-Library:Init()
