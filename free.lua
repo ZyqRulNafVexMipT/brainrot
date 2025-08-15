@@ -254,5 +254,115 @@ AITab:AddButton({
 -- [[Run Services]]
 game:GetService("RunService").Heartbeat:Connect(GoldenArea)
 
+-- [[Additional Features Section]]
+local MoreFeaturesTab = Window:MakeTab({
+    Name = "More Features",
+    Icon = "rbxassetid://4483345875",
+})
+
+MoreFeaturesTab:AddToggle({
+    Name = "Shrink Body",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            -- Shrink Body logic here
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Size = part.Size * 0.5
+                end
+            end
+        else
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Size = part.Size * 2
+                end
+            end
+        end
+    end,
+})
+
+MoreFeaturesTab:AddToggle({
+    Name = "Always Invisible",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            -- Always Invisible logic here
+            local cloak = game:GetService("ReplicatedStorage").Items:FindFirstChild("InvisibilityCloak")
+            if cloak then
+                game:GetService("ReplicatedStorage").UseItem:FireServer(cloak)
+                task.wait(1)
+                cloak:Destroy()
+            end
+        end
+    end,
+})
+
+MoreFeaturesTab:AddToggle({
+    Name = "10 Seconds Immortal",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            -- Immortal logic here
+            hum.Health = 100
+            hum.MaxHealth = 100
+            game:GetService("RunService").Heartbeat:Connect(function()
+                if Window.Flags["IMMORTAL"].Value then
+                    hum.Health = 100
+                end
+            end)
+            task.wait(10)
+            Window.Flags["IMMORTAL"].Value = false
+        end
+    end,
+})
+
+MoreFeaturesTab:AddToggle({
+    Name = "Lock Reminder",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            -- Lock Reminder logic here
+            game:GetService("RunService").Heartbeat:Connect(function()
+                if Window.Flags["LOCK_REMINDER"].Value then
+                    local lockTime = 30 + (game:GetService("Players").LocalPlayer.Rebirths * 10)
+                    print("Lock Time: " .. lockTime .. " seconds")
+                end
+            end)
+        end
+    end,
+})
+
+MoreFeaturesTab:AddToggle({
+    Name = "Disable Trap Touch Interest",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            -- Disable Trap Touch Interest logic here
+            game:GetService("Workspace").Traps.ChildAdded:Connect(function(trap)
+                trap.Touched:Connect(function()
+                    if trap:FindFirstChild("Interest") then
+                        trap.Interest:Destroy()
+                    end
+                end)
+            end)
+        end
+    end,
+})
+
+-- [[Run Services]]
+game:GetService("RunService").Heartbeat:Connect(function()
+    if Window.Flags["SHRINK_BODY"].Value then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Size = part.Size * 0.5
+            end
+        end
+    end
+end)
+
+-- [[Initialize UI]]
+OrionLib:Init()
+
+
 -- [[Initialize UI]]
 OrionLib:Init()
