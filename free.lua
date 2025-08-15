@@ -3,358 +3,137 @@ local Window = OrionLib:MakeWindow({
     Name = "VortX Hub V1.5 BETA",
     Theme = "Dark",
     IntroEnabled = true,
-    IntroText = "VortX Hub",
+    IntroText = "VortX Hub"
 })
 
--- [[Player Configuration]]
-local char = game:GetService("Players").LocalPlayer.Character or game:GetService("Players").LocalPlayer.CharacterAdded:Wait()
-local hum = char:WaitForChild("Humanoid")
+-- =====  SERVICES & UTILS  =====
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+
+local LP = Players.LocalPlayer
+local char = LP.Character or LP.CharacterAdded:Wait()
 local hrp = char:WaitForChild("HumanoidRootPart")
-game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(c)
-    char = c
-    hum = c:WaitForChild("Humanoid")
-    hrp = c:WaitForChild("HumanoidRootPart")
-end)
+local hum = char:WaitForChild("Humanoid")
 
--- [[Base Lock Timer]]
-local function BaseLockTimer()
-    if not Window.Flags["BASE_LOCK"].Value then return end
-    local baseLockTime = 30 + (game:GetService("Players").LocalPlayer.Rebirths * 10)
-    local lockGui = Instance.new("BillboardGui")
-    lockGui.Adornee = char.HumanoidRootPart
-    lockGui.Size = UDim2.new(0, 200, 0, 50)
-    lockGui.StudsOffset = Vector3.new(0, 3, 0)
-    lockGui.Name = "BaseLockGUI"
-    local lockLabel = Instance.new("TextLabel")
-    lockLabel.Size = UDim2.new(1, 0, 1, 0)
-    lockLabel.Text = "Locked: " .. baseLockTime .. "s"
-    lockLabel.BackgroundTransparency = 0.5
-    lockLabel.TextColor3 = Color3.new(1, 0, 0)
-    lockLabel.Font = Enum.Font.GothamBold
-    lockLabel.Parent = lockGui
-    lockGui.Parent = char
-    task.spawn(function()
-        while Window.Flags["BASE_LOCK"].Value do
-            baseLockTime = baseLockTime - 1
-            lockLabel.Text = "Locked: " .. baseLockTime .. "s"
-            task.wait(1)
+-- =====  REAL BASE LOCK TIMER  =====
+local function getRealLockTime()
+    -- server stores it inside the plot sign
+    local plots = workspace:FindFirstChild("Plots")
+    if not plots then return 30 end
+    for _, plot in ipairs(plots:GetChildren()) do
+        local sign = plot:FindFirstChild("PlotSign")
+        if sign and sign:FindFirstChild("YourBase") and sign.YourBase.Value == LP then
+            return sign:FindFirstChild("LockTime") and sign.LockTime.Value or 30
         end
-        lockGui:Destroy()
-    end)
+    end
+    return 30
 end
 
--- [[Golden Area Logic]]
-local function GoldenArea()
-    if not Window.Flags["GOLDEN_AREA"].Value then return end
-    local goldenPart = Instance.new("Part")
-    goldenPart.Size = Vector3.new(5, 1, 5)
-    goldenPart.Position = char.HumanoidRootPart.Position + Vector3.new(0, 1, 0)
-    goldenPart.Color = Color3.new(1, 0.843, 0)
-    goldenPart.Material = Enum.Material.Gold
-    goldenPart.CanCollide = false
-    goldenPart.Transparency = 0.5
-    goldenPart.Name = "GoldenArea"
-    goldenPart.Parent = workspace
-    game:GetService("RunService").Heartbeat:Connect(function()
-        if Window.Flags["GOLDEN_AREA"].Value then
-            goldenPart.Position = char.HumanoidRootPart.Position + Vector3.new(0, 1, 0)
-        else
-            goldenPart:Destroy()
+-- =====  REAL GOLD BASE PART  =====
+local function showGoldenBase()
+    local plots = workspace:FindFirstChild("Plots")
+    if not plots then return end
+    for _, plot in ipairs(plots:GetChildren()) do
+        local basePart = plot:FindFirstChild("BasePart")
+        if basePart and basePart:FindFirstChild("Owner") and basePart.Owner.Value == LP then
+            local highlight = Instance.new("Highlight")
+            highlight.Adornee = basePart
+            highlight.FillColor = Color3.fromRGB(255, 204, 0)
+            highlight.FillTransparency = 0.4
+            highlight.Parent = basePart
+            return
         end
-    end)
+    end
 end
 
--- [[Main Features Section]]
-local MainTab = Window:MakeTab({
-    Name = "Main Features",
-    Icon = "rbxassetid://4483345875",
-})
-
-MainTab:AddToggle({
-    Name = "Base Lock Timer",
-    Default = false,
-    Flag = "BASE_LOCK",
-    Callback = function(Value)
-        if Value then
-            BaseLockTimer()
+-- =====  NO CLIP  =====
+local function setNoClip(state)
+    for _, v in ipairs(char:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.CanCollide = not state
         end
-    end,
-})
+    end
+end
 
-MainTab:AddToggle({
-    Name = "Show Golden Area",
-    Default = false,
-    Flag = "GOLDEN_AREA",
-    Callback = function(Value)
-        GoldenArea()
-    end,
-})
-
-MainTab:AddToggle({
-    Name = "No Clip",
-    Default = false,
-    Callback = function(Value)
-        if Value then
-            -- No Clip logic here
-            char.Humanoid:ChangeState(11)
-        else
-            char.Humanoid:ChangeState(0)
-        end
-    end,
-})
-
-MainTab:AddButton({
-    Name = "Teleport to Base",
-    Callback = function()
-        -- Teleport to Base logic here
-        char.HumanoidRootPart.CFrame = CFrame.new(-100, 5, -100)
-    end,
-})
-
-MainTab:AddButton({
-    Name = "Teleport to Conveyor",
-    Callback = function()
-        -- Teleport to Conveyor logic here
-        char.HumanoidRootPart.CFrame = CFrame.new(0, 5, 0)
-    end,
-})
-
--- [[ESP Section]]
-local ESPTab = Window:MakeTab({
-    Name = "ESP",
-    Icon = "rbxassetid://4483345875",
-})
-
-ESPTab:AddToggle({
-    Name = "Player ESP",
-    Default = false,
-    Callback = function(Value)
-        if Value then
-            -- ESP logic here
-            for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
-                if player ~= game:GetService("Players").LocalPlayer then
-                    local espBox = Instance.new("BoxHandleAdornment")
-                    espBox.Adornee = player.Character.HumanoidRootPart
-                    espBox.Color3 = Color3.new(1, 0, 0)
-                    espBox.Transparency = 0.5
-                    espBox.Size = Vector3.new(2, 2, 2)
-                    espBox.ZIndex = 10
-                    espBox.Name = "ESPBox"
-                    espBox.Parent = player.Character
-                end
-            end
-        else
-            for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
-                if player.Character:FindFirstChild("ESPBox") then
-                    player.Character.ESPBox:Destroy()
-                end
-            end
-        end
-    end,
-})
-
--- [[Helpers Section]]
-local HelpersTab = Window:MakeTab({
-    Name = "Helpers",
-    Icon = "rbxassetid://4483345875",
-})
-
-HelpersTab:AddToggle({
-    Name = "Auto Steal Brainrot",
-    Default = false,
-    Callback = function(Value)
-        if Value then
-            -- Auto Steal Brainrot logic here
-            game:GetService("ReplicatedStorage").BrainrotConveyor.ChildAdded:Connect(function(brainrot)
-                if brainrot.Name == "Brainrot" then
-                    game:GetService("ReplicatedStorage").StealBrainrot:FireServer(brainrot)
-                end
-            end)
-        end
-    end,
-})
-
-HelpersTab:AddToggle({
-    Name = "Auto Return to Base",
-    Default = false,
-    Callback = function(Value)
-        if Value then
-            -- Auto Return to Base logic here
-            game:GetService("RunService").Heartbeat:Connect(function()
-                char.HumanoidRootPart.CFrame = CFrame.new(-100, 5, -100)
-            end)
-        end
-    end,
-})
-
-HelpersTab:AddToggle({
-    Name = "Hold Jump to Fly",
-    Default = false,
-    Callback = function(Value)
-        if Value then
-            -- Hold Jump to Fly logic here
-            local flying = false
-            game:GetService("UserInputService").InputBegan:Connect(function(input)
-                if input.KeyCode == Enum.KeyCode.Space then
-                    flying = true
-                    while flying do
-                        hum:ChangeState("Jumping")
-                        task.wait()
-                    end
-                end
-            end)
-            game:GetService("UserInputService").InputEnded:Connect(function(input)
-                if input.KeyCode == Enum.KeyCode.Space then
-                    flying = false
-                end
-            end)
-        end
-    end,
-})
-
--- [[AI Engine Section]]
-local AITab = Window:MakeTab({
-    Name = "AI Engine",
-    Icon = "rbxassetid://4483345875",
-})
-
-AITab:AddButton({
-    Name = "AI-Powered Steal",
-    Callback = function()
-        OrionLib:MakeNotification({
-            Name = "AI Engine",
-            Content = "AI predicting optimal steal path...",
-            Time = 5,
-        })
-        -- AI-Powered Steal logic here
-        local brainrots = game:GetService("Workspace").Brainrots:GetChildren()
-        local closestBrainrot = nil
-        local closestDistance = math.huge
-        for _, brainrot in ipairs(brainrots) do
-            local distance = (brainrot.Position - hrp.Position).Magnitude
-            if distance < closestDistance then
-                closestDistance = distance
-                closestBrainrot = brainrot
-            end
-        end
-        if closestBrainrot then
-            game:GetService("ReplicatedStorage").StealBrainrot:FireServer(closestBrainrot)
-        end
-    end,
-})
-
--- [[Run Services]]
-game:GetService("RunService").Heartbeat:Connect(GoldenArea)
-
--- [[Additional Features Section]]
-local MoreFeaturesTab = Window:MakeTab({
-    Name = "More Features",
-    Icon = "rbxassetid://4483345875",
-})
-
-MoreFeaturesTab:AddToggle({
-    Name = "Shrink Body",
-    Default = false,
-    Callback = function(Value)
-        if Value then
-            -- Shrink Body logic here
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Size = part.Size * 0.5
-                end
-            end
-        else
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Size = part.Size * 2
-                end
-            end
-        end
-    end,
-})
-
-MoreFeaturesTab:AddToggle({
-    Name = "Always Invisible",
-    Default = false,
-    Callback = function(Value)
-        if Value then
-            -- Always Invisible logic here
-            local cloak = game:GetService("ReplicatedStorage").Items:FindFirstChild("InvisibilityCloak")
-            if cloak then
-                game:GetService("ReplicatedStorage").UseItem:FireServer(cloak)
-                task.wait(1)
-                cloak:Destroy()
-            end
-        end
-    end,
-})
-
-MoreFeaturesTab:AddToggle({
-    Name = "10 Seconds Immortal",
-    Default = false,
-    Callback = function(Value)
-        if Value then
-            -- Immortal logic here
-            hum.Health = 100
-            hum.MaxHealth = 100
-            game:GetService("RunService").Heartbeat:Connect(function()
-                if Window.Flags["IMMORTAL"].Value then
-                    hum.Health = 100
-                end
-            end)
-            task.wait(10)
-            Window.Flags["IMMORTAL"].Value = false
-        end
-    end,
-})
-
-MoreFeaturesTab:AddToggle({
-    Name = "Lock Reminder",
-    Default = false,
-    Callback = function(Value)
-        if Value then
-            -- Lock Reminder logic here
-            game:GetService("RunService").Heartbeat:Connect(function()
-                if Window.Flags["LOCK_REMINDER"].Value then
-                    local lockTime = 30 + (game:GetService("Players").LocalPlayer.Rebirths * 10)
-                    print("Lock Time: " .. lockTime .. " seconds")
-                end
-            end)
-        end
-    end,
-})
-
-MoreFeaturesTab:AddToggle({
-    Name = "Disable Trap Touch Interest",
-    Default = false,
-    Callback = function(Value)
-        if Value then
-            -- Disable Trap Touch Interest logic here
-            game:GetService("Workspace").Traps.ChildAdded:Connect(function(trap)
-                trap.Touched:Connect(function()
-                    if trap:FindFirstChild("Interest") then
-                        trap.Interest:Destroy()
-                    end
-                end)
-            end)
-        end
-    end,
-})
-
--- [[Run Services]]
-game:GetService("RunService").Heartbeat:Connect(function()
-    if Window.Flags["SHRINK_BODY"].Value then
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.Size = part.Size * 0.5
-            end
+-- =====  HOLD-JUMP FLY  =====
+local flying = false
+local bv
+UserInputService.InputBegan:Connect(function(i, g)
+    if not g and i.KeyCode == Enum.KeyCode.Space then
+        if not flying then
+            flying = true
+            bv = Instance.new("BodyVelocity")
+            bv.MaxForce = Vector3.new(40000, 40000, 40000)
+            bv.Velocity = Vector3.new(0, 50, 0)
+            bv.Parent = hrp
         end
     end
 end)
 
--- [[Initialize UI]]
-OrionLib:Init()
+UserInputService.InputEnded:Connect(function(i, g)
+    if i.KeyCode == Enum.KeyCode.Space and flying then
+        flying = false
+        if bv then bv:Destroy() end
+    end
+end)
 
+-- =====  AUTO STEAL & RETURN  =====
+local function autoSteal()
+    local stealRemote = ReplicatedStorage:FindFirstChild("StealBrainrot")
+    local conveyor = workspace:FindFirstChild("BrainrotConveyor")
+    if not stealRemote or not conveyor then return end
 
--- [[Initialize UI]]
+    conveyor.ChildAdded:Connect(function(obj)
+        if obj.Name == "Brainrot" then
+            stealRemote:FireServer(obj)          -- steal
+            task.wait(0.5)
+            local base = getRealBasePart()       -- teleport back
+            if base then
+                hrp.CFrame = base.CFrame + Vector3.new(0, 5, 0)
+            end
+        end
+    end)
+end
+
+-- =====  AI PREDICTOR  =====
+local function aiPredictBest()
+    local brainrots = workspace:FindFirstChild("BrainrotConveyor") and workspace.BrainrotConveyor:GetChildren() or {}
+    local best = nil
+    local bestValue = -math.huge
+    for _, b in ipairs(brainrots) do
+        local v = b:FindFirstChild("Value") and b.Value.Value or 0
+        if v > bestValue then
+            bestValue = v
+            best = b
+        end
+    end
+    if best then
+        ReplicatedStorage:FindFirstChild("StealBrainrot"):FireServer(best)
+    end
+end
+
+-- =====  ORION GUI  =====
+local MainTab = Window:MakeTab({ Name = "Main", Icon = "rbxassetid://4483345875" })
+MainTab:AddToggle({ Name = "Real Base Lock Timer", Default = false, Callback = function(v)
+    if v then
+        local t = getRealLockTime()
+        OrionLib:MakeNotification({ Name = "Lock", Content = "Your base will unlock in "..t.." s", Time = 5 })
+    end
+end })
+
+MainTab:AddToggle({ Name = "Show Golden Base Highlight", Default = false, Callback = showGoldenBase })
+MainTab:AddToggle({ Name = "No Clip", Default = false, Callback = setNoClip })
+MainTab:AddButton({ Name = "Teleport to My Base", Callback = function()
+    local base = getRealBasePart()
+    if base then hrp.CFrame = base.CFrame + Vector3.new(0, 5, 0) end
+end })
+
+local HelpersTab = Window:MakeTab({ Name = "Helpers", Icon = "rbxassetid://4483345875" })
+HelpersTab:AddToggle({ Name = "Auto Steal + Return to Base", Default = false, Callback = autoSteal })
+HelpersTab:AddToggle({ Name = "Hold Space to Fly", Default = false }) -- handled above
+HelpersTab:AddButton({ Name = "AI Steal Highest Value", Callback = aiPredictBest })
+
+-- =====  INIT  =====
 OrionLib:Init()
