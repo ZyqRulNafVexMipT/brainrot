@@ -756,6 +756,3 @@ end)
 
 -- Library init (unchanged)
 Library:Init()
-
-
-Library:Init()
