@@ -16,14 +16,6 @@ game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(c)
     hrp = c:WaitForChild("HumanoidRootPart")
 end)
 
--- [[AI Engine Configuration]]
-local AIEngine = {
-    BrainrotPredictor = {
-        Accuracy = 95,
-        StealPathOptimization = true,
-    },
-}
-
 -- [[Base Lock Timer]]
 local function BaseLockTimer()
     if not Window.Flags["BASE_LOCK"].Value then return end
